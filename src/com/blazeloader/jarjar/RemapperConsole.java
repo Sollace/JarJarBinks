@@ -50,8 +50,9 @@ public class RemapperConsole extends CommandReader {
 				}
 				ClassTree unmapped = matcher.before().lookup(args[1]);
 				if (unmapped != null) {
-					out.println("Class found but not matched: ");
-					return unmapped.toString();
+					out.print("{null} <- ");
+					if (full) return unmapped.toString();
+					return unmapped.description();
 				}
 				return "Entry not found";
 			}
@@ -65,29 +66,26 @@ public class RemapperConsole extends CommandReader {
 				}
 				ClassTree unmapped = matcher.after().lookup(args[1]);
 				if (unmapped != null) {
-					out.println("Class found but not matched: ");
-					return unmapped.toString();
+					out.print("{null} -> ");
+					if (full) return unmapped.toString();
+					return unmapped.description();
 				}
 				return "Entry not found";
 			}
 			case "lookup-parent": {
 				if (args.length < 2) return "Error: Too few arguments";
 				boolean reverse = args.length == 3 && "reverse".equalsIgnoreCase(args[2]);
-				ClassTreeMatcher result = null;
-				if (!reverse) {
-					result = matcher.lookup(args[1]);
-					if (result != null) {
-						return result.parent().description();
-					}
-					ClassTree parent = matcher.before().lookup(args[1]);
-					if (parent != null) return parent.parent().getName();
+				ClassTree tree = reverse ? matcher.after() : matcher.before();
+				ClassTreeMatcher result = reverse ? matcher.reverseLookup(args[1]) : matcher.lookup(args[1]);
+				if (result != null) return result.parent().description();
+				tree = tree.lookup(args[1]);
+				if (tree != null) {
+					tree = tree.parent();
+					result = reverse ? matcher.reverseLookup(tree.getName()) : matcher.lookup(tree.getName());
+					if (result != null) return result.description();
+					out.print(reverse ? "{null} <- " : "{null} -> ");
+					return tree.description();
 				}
-				result = matcher.reverseLookup(args[1]);
-				if (result != null) {
-					return result.parent().description();
-				}
-				ClassTree parent = matcher.after().lookup(args[1]);
-				if (parent != null) return parent.parent().getName();
 				return "Entry not found.";
 			}
 			case "define": {
@@ -151,7 +149,7 @@ public class RemapperConsole extends CommandReader {
 						out.println("Unmatched source classes:");
 						for (String i : matcher.getUnmatched()) {
 							ClassTree item = matcher.before().lookup(i);
-							out.println(++count + ". Parent: " + item.parent().getName());
+							out.println(++count + ". Parent: " + item.parent().description());
 							out.println(item.toString());
 						}
 						break;
@@ -160,7 +158,7 @@ public class RemapperConsole extends CommandReader {
 						out.println("Unassigned destination classes:");
 						for (String i : matcher.getUnassigned()) {
 							ClassTree item = matcher.after().lookup(i);
-							out.println(++count + ". Parent: " + item.parent().getName());
+							out.println(++count + ". Parent: " + item.parent().description());
 							out.println(item.toString());
 						}
 					}
@@ -206,7 +204,8 @@ public class RemapperConsole extends CommandReader {
 						}
 					}
 					if (looked == null) {
-						out.println(i + " (Not in match table)");
+						out.print(reverse ? "{null} -> " : "{null} <- ");
+						out.println(node.description());
 					} else {
 						if (ops.containsKey("samefields") && ops.getBool("samefields") != (looked.before().fields() == looked.after().fields())) continue;
 						if (ops.containsKey("samemethods") && ops.getBool("samemethods") != (looked.before().methods() == looked.after().methods())) continue;
@@ -231,7 +230,7 @@ public class RemapperConsole extends CommandReader {
 		out.println("save-tree [file]\t-\tOutput the entire class map tree to file.");
 		out.println("save-json [file]\t-\tSaves the match tree to json. Useful if you want to edit it later.");
 		out.println("load-json [file]\t-\tLoads a match tree from json.");
-		out.println("list [matched|unassigned]\t-\tPrints a list of all classes not included in the matching tree.");
+		out.println("list [unmatched|unassigned]\t-\tPrints a list of all classes not included in the matching tree.");
 		out.println("grep {reverse}\t-\tFinds classes matching given conditions.");
 		out.println("exit\t-\tExit");
 	}
