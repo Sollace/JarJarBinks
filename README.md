@@ -45,3 +45,14 @@ To do class matchings:
        destination - destination jar for the mappings to be mapped onto. Usually a newer version than source
        json - path to a json file containing a previously computed class tree. If this argument is present
               the tree from this fill will be loaded instead of computing a new one from the input jars
+
+# Required Libraries
+JarJarBinks uses both CompCore and OBFUtil (included in compiled builds)  both of which are available from the below urls and clonable when using git.
+
+https://github.com/warriordog/CompCore.git
+
+https://github.com/BlazeLoader/OBFUtil.git
+
+It also includes some code from BlazeLoader to perform the ONF transformations.
+
+https://github.com/BlazeLoader/BlazeLoader.git
