@@ -22,7 +22,7 @@ Arguments in "[]" are required, and arguments in "{}" are optional.
 
 For the access transformer:
 
-    jarjar [ont] [jar] [state] {displace}
+    jarjar [onf] [jar] [state] {displace}
        onf - path to .onf file to apply
        jar - the jar file to transform
        state - obfuscation state (MCP|SRG|OBF)
