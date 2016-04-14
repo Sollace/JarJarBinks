@@ -20,51 +20,37 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 	private ClassTree from;
 	private ClassTree to;
 	
-	private double similarity = 0;
+	private double similarity;
 	
 	private List<ClassTreeMatcher> children = new ArrayList<ClassTreeMatcher>();
 	private List<String> unmatchedClasses;
 	private List<String> unassignedClasses;
 	
-	public ClassTreeMatcher(double sim, ClassTree one, ClassTree two) {
+	public static ClassTreeMatcher loadFromJson(ClassTree from, ClassTree to, String json) {
+		JsonParser parser = new JsonParser();
+		return new ClassTreeMatcher(from, to, parser.parse(json));
+	}
+	
+	/**
+	 * Creates a new class tree matcher with itself as the root.
+	 * @param one	Class tree to map from
+	 * @param two	Class tree to map to
+	 */
+	public ClassTreeMatcher(ClassTree one, ClassTree two) {
+		this(100, one, two);
+		root = this;
+		initialise(null);
+	}
+	
+	private ClassTreeMatcher(double sim, ClassTree one, ClassTree two) {
 		similarity = sim;
 		from = one;
 		to = two;
 	}
 	
-	public ClassTreeMatcher(ClassTree one, ClassTree two) {
-		this(null, one, two);
-	}
-	
-	public ClassTreeMatcher(ClassTreeMatcher root, ClassTree one, ClassTree two) {
-		this.root = this;
-		from = one;
-		to = two;
-		similarity = 100;
-		List<String> taken = new ArrayList<String>();
-		taken.add(to.getName());
-		List<String> matched = new ArrayList<String>();
-		matched.add(from.getName());
-		matchChilds(matched, taken);
-		matchInnerClasses(matched, taken);
-		int lostClasses = one.size() - matched.size();
-		int available = two.size() - taken.size();
-		if (lostClasses != 0) {
-			System.err.println(lostClasses + " classes not identified.");
-			System.err.println(available + " unmapped classes available.");
-			matchLostClasses(matched, taken);
-			matchLostInnerClasses(matched, taken);
-			System.err.println((one.size() - matched.size()) + " classes not identified. (after retry)");
-			System.err.println((two.size() - taken.size()) + " unmapped classes available. (after retry)");
-		}
-		if (root != null) this.root = root;
-		root().recordUnmatchedClasses(this, matched, taken);
-	}
-	
 	private ClassTreeMatcher(ClassTree one, ClassTree two, JsonElement json) {
+		this(100, one, two);
 		root = this;
-		from = one;
-		to = two;
 		loadChildrenFromJson(json);
 	}
 	
@@ -90,9 +76,26 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 		}
 	}
 	
-	public static ClassTreeMatcher loadFromJson(ClassTree from, ClassTree to, String json) {
-		JsonParser parser = new JsonParser();
-		return new ClassTreeMatcher(from, to, parser.parse(json));
+	private ClassTreeMatcher initialise(ClassTreeMatcher root) {
+		List<String> taken = new ArrayList<String>();
+		taken.add(to.getName());
+		List<String> matched = new ArrayList<String>();
+		matched.add(from.getName());
+		matchChilds(matched, taken);
+		matchInnerClasses(matched, taken);
+		int lostClasses = from.size() - matched.size();
+		int available = from.size() - taken.size();
+		if (lostClasses != 0) {
+			System.err.println(lostClasses + " classes not identified.");
+			System.err.println(available + " unmapped classes available.");
+			matchLostClasses(matched, taken);
+			matchLostInnerClasses(matched, taken);
+			System.err.println((from.size() - matched.size()) + " classes not identified. (after retry)");
+			System.err.println((from.size() - taken.size()) + " unmapped classes available. (after retry)");
+		}
+		if (root != null) this.root = root;
+		root().recordUnmatchedClasses(this, matched, taken);
+		return this;
 	}
 	
 	public String writeToJson() {
@@ -152,14 +155,6 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 				unassignedClasses.add(i);
 			}
 		}
-	}
-	
-	public List<String> getUnmatched() {
-		return unmatchedClasses == null && root() != this ? root().getUnmatched() : unmatchedClasses;
-	}
-	
-	public List<String> getUnassigned() {
-		return unassignedClasses == null && root() != this ? root().getUnmatched() : unassignedClasses;
 	}
 	
 	private void matchLostClasses(List<String> matched, List<String> taken) {
@@ -369,10 +364,12 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 		ClassTreeMatcher toMatcher = root().reverseLookup(to.getName());
 		if (fromMatcher != null && toMatcher == null) {
 			fromMatcher.to = to;
+			fromMatcher.similarity = fromMatcher.from.similarity(to);
 			return fromMatcher.parent();
 		}
 		if (toMatcher != null && fromMatcher == null) {
 			toMatcher.from = from;
+			toMatcher.similarity = from.similarity(toMatcher.to);
 			return toMatcher.parent();
 		}
 		if (fromMatcher != null && toMatcher != null) {
@@ -386,11 +383,8 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 			}
 			throw new IllegalStateException("Can only define a relationship between classes with the same parent");
 		}
-		if (initialise) {
-			parent.addChild(new ClassTreeMatcher(from, to));
-		} else {
-			parent.addChild(new ClassTreeMatcher(100, from, to));
-		}
+		ClassTreeMatcher child = parent.addChild(new ClassTreeMatcher(from.similarity(to), from, to));
+		if (initialise) child.initialise(parent.root());
 		getUnmatched().remove(from.getName());
 		getUnassigned().remove(to.getName());
 		return parent;
@@ -414,10 +408,32 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 		return this;
 	}
 	
+	/**
+	 * Gets a list of all source classes not currently matched.
+	 */
+	public List<String> getUnmatched() {
+		return unmatchedClasses == null && root() != this ? root().getUnmatched() : unmatchedClasses;
+	}
+	
+	/**
+	 * Gets a list of all destination classes not currently matched.
+	 */
+	public List<String> getUnassigned() {
+		return unassignedClasses == null && root() != this ? root().getUnmatched() : unassignedClasses;
+	}
+	
+	/**
+	 * Gets the class this entry maps onto.
+	 * @return
+	 */
 	public ClassTree after() {
 		return to;
 	}
 	
+	/**
+	 * Gets the class this entry maps from.
+	 * @return
+	 */
 	public ClassTree before() {
 		return from;
 	}
@@ -433,17 +449,25 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 	public ClassTreeMatcher root() {
 		return root;
 	}
-
+	
+	/**
+	 * Looks up an entry by the name of it's source class.
+	 */
 	public ClassTreeMatcher lookup(String className) {
 		if (from.getName().equals(className)) return this;
 		ClassTreeMatcher result = null;
 		for (ClassTreeMatcher i : children) {
 			result = i.lookup(className);
-			if (result != null) return result;
+			if (result != null) {
+				return result;
+			}
 		}
 		return result;
 	}
 	
+	/**
+	 * Looks up an entry by the name of it's destination class.
+	 */
 	public ClassTreeMatcher reverseLookup(String className) {
 		if (to.getName().equals(className)) return this;
 		ClassTreeMatcher result = null;
@@ -462,10 +486,15 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 		return size;
 	}
 	
+	/**
+	 * Swaps the destinations of this class and another and recomputes the similarity for these two elements.
+	 */
 	public void swap(ClassTreeMatcher other) {
 		ClassTree inter = to;;
 		to = other.to;
 		other.to = inter;
+		similarity = from.similarity(to);
+		other.similarity = other.from.similarity(other.to);
 	}
 	
 	public double similarity() {
@@ -531,5 +560,18 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 			result += i.toString(indent);
 		}
 		return result;
+	}
+	
+	public List<String> keySet() {
+		List<String> result = new ArrayList<String>();
+		buildKeySet(result);
+		return result;
+	}
+	
+	private void buildKeySet(List<String> keyset) {
+		keyset.add(from.getName());
+		for (ClassTreeMatcher i : children) {
+			i.buildKeySet(keyset);
+		}
 	}
 }

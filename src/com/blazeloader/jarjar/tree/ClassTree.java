@@ -12,9 +12,6 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import com.google.common.collect.Lists;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
 
 import net.acomputerdog.core.java.Patterns;
 
@@ -40,32 +37,6 @@ public class ClassTree implements Tree<ClassTree, String> {
 	private final int methods;
 	
 	private int abstractMethods = 0;
-	
-	public String writeToJson() {
-		return writeChildsToJson(writeJson(new JsonObject())).toString();
-	}
-	
-	protected JsonObject writeJson(JsonObject element) {
-		element.add("ClassName", new JsonPrimitive(getName()));
-		if (outer != null) element.add("OuterClass", new JsonPrimitive(outer));
-		element.add("parent", new JsonPrimitive(parent().getName()));
-		element.add("IsAnonymouse", new JsonPrimitive(anon));
-		element.add("IsInterface", new JsonPrimitive(isinterface));
-		element.add("IsAbstract", new JsonPrimitive(isabstract));
-		element.add("AbstractMethods", new JsonPrimitive(abstractMethods));
-		element.add("Fields", new JsonPrimitive(fields()));
-		element.add("Methods", new JsonPrimitive(methods()));
-		return element;
-	}
-	
-	protected JsonObject writeChildsToJson(JsonObject element) {
-		JsonArray items = new JsonArray();
-		for (ClassTree i : children) {
-			items.add(i.writeChildsToJson(i.writeJson(new JsonObject())));
-		}
-		element.add("children", items);
-		return element;
-	}
 	
 	public ClassTree(ClassMap classMap) {
 		element = null;
@@ -415,21 +386,21 @@ public class ClassTree implements Tree<ClassTree, String> {
 	}
 	
 	private double matchAttributes(ClassTree other) {
-		boolean f = fields() == other.fields();
-		boolean m = methods() == other.methods();
-		boolean a = abstractMethods == other.abstractMethods;
-		boolean i = interfaces() == other.interfaces();
-		boolean n = isInner() && matchNesting(other);
-		boolean ab = isAbstract() == other.isAbstract();
-		double w = 1d/6;
 		double result = 0;
-		if (f) result += w;
-		if (m) result += w;
-		if (a) result += w;
-		if (i) result += w;
-		if (n) result += w;
-		if (ab) result += w;
+		result += similarity(fields(), other.fields())/6;
+		result += similarity(methods(), other.methods())/6;
+		result += similarity(abstractMethods, other.abstractMethods)/6;
+		result += similarity(interfaces(), other.interfaces())/6;
+		if (isInner() && matchNesting(other)) result += 1/6;
+		if (isAbstract() == other.isAbstract()) result += 1/6;
 		return result;
+	}
+	
+	private float similarity(int one, int two) {
+		if (one == two) return 1;
+		one = Math.abs(one);
+		two = Math.abs(two);
+		return (float)Math.min(one, two) / (float)Math.max(one, two);
 	}
 	
 	private double similarityInt(ClassTree other) {
@@ -437,7 +408,6 @@ public class ClassTree implements Tree<ClassTree, String> {
 		if (isInner() != other.isInner()) return 0;
 		double result = matchAttributes(other) + reverseSimilarity(other);
 		if (children.size() == 0 && other.children.size() == 0) {
-			//result += matchMethods(other) - 1;
 			return result;
 		}
 		for (int i = 0; i < children.size() && i < other.children.size(); i++) {
@@ -463,11 +433,11 @@ public class ClassTree implements Tree<ClassTree, String> {
 	}
 	
 	/**
-	 * Gets the total number of interface implementations of the elements below and including this tree node.
+	 * Gets the total number of interface implementations leading down the tree to this one.
 	 */
 	public int implSize() {
 		int size = interfaces.size();
-		for (ClassTree i : children) {
+		for (ClassTree i : interfaces) {
 			size += i.implSize();
 		}
 		return size;
@@ -481,13 +451,16 @@ public class ClassTree implements Tree<ClassTree, String> {
 		return name.equals(className);
 	}
 	
+	public String description() {
+		return className + " { fields: " + fields() + "; methods: " + methods() + "; interfaces: " + interfaces() + " }";
+	}
+	
 	public String toString() {
 		return toString("");
 	}
 	
 	private String toString(String indent) {
-		String result = indent + this.className;
-		result += " { fields: " + fields() + "; methods: " + methods() + "; interfaces: " + interfaces() + " }";
+		String result = indent + description();
 		result += Patterns.LINE_SEPARATOR;
 		indent += "\t";
 		for (ClassTree i : children) {
@@ -495,13 +468,11 @@ public class ClassTree implements Tree<ClassTree, String> {
 		}
 		return result;
 	}
-
+	
 	@Override
 	public int compareTo(ClassTree o) {
 		int result = Integer.compare(size(), o.size());
-		if (result == 0) {
-			result = Integer.compare(methods(), o.methods());
-		}
+		if (result == 0) result = Integer.compare(methods(), o.methods());
 		if (result == 0) result = Integer.compare(fields(), o.fields());
 		if (result == 0) result = Integer.compare(interfaces(), o.interfaces());
 		return result;
