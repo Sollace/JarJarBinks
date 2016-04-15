@@ -3,22 +3,29 @@ package com.blazeloader.jarjar;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.Writer;
 
 import com.blazeloader.jarjar.console.CommandReader;
 import com.blazeloader.jarjar.console.Options;
 import com.blazeloader.jarjar.convert.ClassRemapper;
+import com.blazeloader.jarjar.convert.SeargToEnigmaConverter;
 import com.blazeloader.jarjar.tree.ClassTree;
 import com.blazeloader.jarjar.tree.ClassTreeMatcher;
 
+import net.acomputerdog.OBFUtil.map.TargetType;
 import net.acomputerdog.OBFUtil.parse.types.SRGFileParser;
 import net.acomputerdog.OBFUtil.table.DirectOBFTable;
+import net.acomputerdog.OBFUtil.table.OBFTable;
 
 public class RemapperConsole extends CommandReader {
 	private ClassTreeMatcher matcher;
 	
 	private final ClassRemapper remapper;
 	private final File srg;
+	
+	private DirectOBFTable srgtable;
+	private SRGFileParser parser;
 	
 	public RemapperConsole(ClassRemapper remapper, File srg) {
 		this(remapper, srg, null);
@@ -88,6 +95,33 @@ public class RemapperConsole extends CommandReader {
 				}
 				return "Entry not found.";
 			}
+			case "lookup-obf": {
+				if (args.length < 2) return "Error: Too few arguments";
+				OBFTable table = loadSrg();
+				if (!table.hasDeobf(args[1], TargetType.CLASS)) {
+					args[1] = args[1].replace('/', '.');
+				}
+				if (table.hasDeobf(args[1], TargetType.CLASS)) {
+					String result = table.obf(args[1], TargetType.CLASS);
+					ClassTreeMatcher match = matcher.lookup(result);
+					if (match != null) {
+						return match.bitMask() + " " + match.description();
+					}
+				}
+				return "Entry not found.";
+			}
+			case "lookup-mcp": {
+				if (args.length < 2) return "Error: Too few arguments";
+				boolean reverse = args.length == 3 && "reverse".equalsIgnoreCase(args[2]);
+				ClassTreeMatcher found = reverse ? matcher.reverseLookup(args[1]) : matcher.lookup(args[1]);
+				if (found != null) {
+					OBFTable table = loadSrg();
+					if (table.hasObf(found.before().getName(), TargetType.CLASS)) {
+						return table.deobf(found.before().getName(), TargetType.CLASS);
+					}
+				}
+				return "Entry not found";
+			}
 			case "define": {
 				if (args.length < 3) return "Error: Too few arguments";
 				ClassTree from = matcher.before().lookup(args[1]);
@@ -95,7 +129,8 @@ public class RemapperConsole extends CommandReader {
 				if (from == null) return "Error: From class not found.";
 				if (to == null) return "Error: To class not found.";
 				matcher.define(from, to);
-				return handleCommand("get", args[2]);
+				ClassTreeMatcher result = matcher.lookup(from.getName());
+				return result.bitMask() + " " + result.description();
 			}
 			case "swap": {
 				if (args.length < 3) return "Error: Too few arguments";
@@ -104,20 +139,26 @@ public class RemapperConsole extends CommandReader {
 				if (old == null) return "Error: class not found: " + args[1];
 				if (neu == null) return "Error: class not found: " + args[2];
 				old.swap(neu);
-				out.println(handleCommand("get", args[1]));
-				return handleCommand("get", args[2]);
+				out.println(old.bitMask() + " " + old.description());
+				return neu.bitMask() + " " + neu.description();
 			}
 			case "save-mcp": {
 				if (args.length < 2) return "Error: Too few arguments.";
 				args[1] = fillSystemVariables(args[1]);
 				File output = new File(args[1]);
-				SRGFileParser parser = new SRGFileParser("", false);
-				DirectOBFTable table = new DirectOBFTable();
-				parser.loadEntries(srg, table, true);
-				table = remapper.remapTree(table);
+				OBFTable table = remapper.remapTree(loadSrg());
 				parser.storeEntries(output, table);
 				out.println("Conversion complete.");
-				return "result saved to " + args[1];
+				return "MCP mappings saved to " + args[1];
+			}
+			case "save-enigma": {
+				if (args.length < 2) return "Error: Too few arguments.";
+				args[1] = fillSystemVariables(args[1]);
+				File output = new File(args[1]);
+				OBFTable table = remapper.remapTree(loadSrg());
+				SeargToEnigmaConverter converter = new SeargToEnigmaConverter(remapper.destination(), table);
+				converter.storeEntries(output);
+				return "Enigma mappings saved to " + args[1];
 			}
 			case "save-tree": {
 				if (args.length < 2) return "Error: Too few arguments.";
@@ -126,7 +167,7 @@ public class RemapperConsole extends CommandReader {
 				Writer w = new BufferedWriter(new FileWriter(output));
 				w.write(matcher.toString());
 				w.close();
-				return "Tree saved to " + args[1];
+				return "Tree text saved to " + args[1];
 			}
 			case "save-json": {
 				if (args.length < 2) return "Error: Too few arguments.";
@@ -135,15 +176,16 @@ public class RemapperConsole extends CommandReader {
 				Writer w = new BufferedWriter(new FileWriter(output));
 				w.write(matcher.writeToJson());
 				w.close();
-				return "Tree saved to " + args[1];
+				return "Tree json saved to " + args[1];
 			}
 			case "load-json": {
-				if (args.length < 3) return "Error: Too few arguments.";
+				if (args.length < 2) return "Error: Too few arguments.";
 				args[1] = fillSystemVariables(args[1]);
-				matcher = remapper.loadMatcherFromJson(args[2]);
+				matcher = remapper.loadMatcherFromJson(args[1]);
 				if (matcher == null){
 					return "Error: Could not load matcher.";
 				}
+				return "Table loaded.";
 			}
 			case "list": {
 				if (args.length < 2) return "Error: Too few arguments.";
@@ -167,7 +209,7 @@ public class RemapperConsole extends CommandReader {
 						}
 					}
 				}
-				break;
+				return null;
 			}
 			case "grep": {
 				boolean reverse = args.length == 2 && "reverse".equalsIgnoreCase(args[1]);
@@ -179,8 +221,7 @@ public class RemapperConsole extends CommandReader {
 				if (ops.size() == 0) {
 					out.println("Error: No conditions given!");
 					out.println("Specify conditions one per line as: {property}={value}");
-					out.println("Terminate with \"\\\"");
-					return null;
+					return "Terminate with \"\\\"";
 				}
 				ClassTree tree = reverse ? matcher.after() : matcher.before();
 				int matches = 0;
@@ -218,19 +259,31 @@ public class RemapperConsole extends CommandReader {
 					}
 					matches++;
 				}
-				out.println(matches + " classes matched.");
+				return matches + " classes matched.";
 			}
 		}
-		return null;
+		return "Command Not Found: " + args[0];
+	}
+	
+	private OBFTable loadSrg() throws IOException {
+		if (srgtable == null) {
+			parser = new SRGFileParser("", false);
+			srgtable = new DirectOBFTable();
+			parser.loadEntries(srg, srgtable, true);
+		}
+		return srgtable;
 	}
 	
 	public void printHelp() {
 		out.println("lookup [classname] {full}\t-\tRetrieves a single class mapping from a loaded tree.");
 		out.println("lookup-reverse [classname] {full}\t-\tRetrieves the class that is mapped into the given one.");
 		out.println("lookup-parent [classname] {reverse}\t-\tRetrieves the parent of the given class.");
+		out.println("lookup-obf [mcp name]\t-\tFinds the obfuscated name for the given MCP name.");
+		out.println("lookup-mcp [obf name]\t-\tFinds the MCP name for the given obfuscated name.");
 		out.println("define [from] [to]\t-\tDefines a new mapping between two classes. (parents/children/interfaces are implicitly defined)");
 		out.println("swap [one] [two]\t-\tSwaps the destinations of two classes.");
 		out.println("save-mcp [file]\t-\tRemap and output mcp mappings for the current class map tree.");
+		out.println("save-enigma [file]\t-\tCreates enigma mappings from the current tree that applies to the destination jar");
 		out.println("save-tree [file]\t-\tOutput the entire class map tree to file.");
 		out.println("save-json [file]\t-\tSaves the match tree to json. Useful if you want to edit it later.");
 		out.println("load-json [file]\t-\tLoads a match tree from json.");

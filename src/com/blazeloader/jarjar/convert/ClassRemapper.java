@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.List;
 
 import com.blazeloader.jarjar.tree.ClassMap;
 import com.blazeloader.jarjar.tree.ClassTree;
@@ -11,6 +12,7 @@ import com.blazeloader.jarjar.tree.ClassTreeMatcher;
 
 import net.acomputerdog.OBFUtil.map.TargetType;
 import net.acomputerdog.OBFUtil.table.DirectOBFTable;
+import net.acomputerdog.OBFUtil.table.OBFTable;
 import net.acomputerdog.OBFUtil.util.Obfuscator;
 
 public class ClassRemapper {
@@ -30,6 +32,14 @@ public class ClassRemapper {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public ClassMap source() {
+		return source;
+	}
+	
+	public ClassMap destination() {
+		return destination;
 	}
 	
 	private void buildClassTrees() {
@@ -97,8 +107,8 @@ public class ClassRemapper {
 		return after;
 	}
 	
-	public DirectOBFTable remapTree(DirectOBFTable table) {
-		DirectOBFTable result = new DirectOBFTable();
+	public OBFTable remapTree(OBFTable table) {
+		OBFTable result = new DirectOBFTable();
 		String[] classes = table.getAllObf(TargetType.CLASS);
 		
 		if (matcher == null) loadMatcher();
@@ -133,23 +143,12 @@ public class ClassRemapper {
 		}
 		for (String method : table.getAllDeobf(TargetType.METHOD)) {
 			String[] split = method.split(" ");
-			String obfName = obfuscator.getMemberName(table.obf(method, TargetType.METHOD));
+			String obf = table.obf(method, TargetType.METHOD);
+			String obfName = obfuscator.getMemberName(obf);
 			String mcpClass = obfuscator.getMemberClass(split[0]);
 			if (!result.hasDeobf(mcpClass, TargetType.CLASS)) continue;
 			String obfClass = result.obf(mcpClass, TargetType.CLASS);
-			String obfDescriptor = null;
-			/*ClassNode dest = destination.get(obfClass);
-			if (dest != null) {
-				for (MethodNode meth : (List<MethodNode>)dest.methods) {
-					if (meth.name.equals(obfName)) {
-						obfDescriptor = meth.desc;
-						break;
-					}
-				}
-			}*/
-			if (obfDescriptor == null) {
-				obfDescriptor = obfuscator.obfuscateDescriptor(method.split(" ")[1], result);
-			}
+			String obfDescriptor = convertDescriptor(obf.split(" ")[1]);
 			String mcpDescriptor = obfuscator.deObfuscateDescriptor(obfDescriptor, result);
 			result.addType(obfClass + "." + obfName + " " + obfDescriptor, split[0] + " " + mcpDescriptor, TargetType.METHOD);
 		}
@@ -157,5 +156,28 @@ public class ClassRemapper {
 			result.addType(table.obf(pack, TargetType.PACKAGE), pack, TargetType.PACKAGE);
 		}
 		return result;
+	}
+	
+	/**
+	 * Converts a descriptor of source class names into an equivalent in destination class names. 
+	 */
+	private String convertDescriptor(String descriptor) {
+    	String obfuscatedDescriptor = "";
+    	String[] split = descriptor.split("\\)");
+    	List<String> classes = Obfuscator.splitDescriptor(split[0]);
+    	if (split.length < 2) throw new IllegalArgumentException("Missing return type for \"" + descriptor + "\"");
+    	for (int j = 0; j < classes.size(); j++) {
+			obfuscatedDescriptor += convertParameter(classes.get(j));
+    	}
+    	return "(" + obfuscatedDescriptor + ")" + convertParameter(split[1]);
+    }
+	
+	private String convertParameter(String item) {
+		if (item.endsWith(";")) {
+			String type = obfuscator.extractClass(item);
+			ClassTreeMatcher found = matcher.lookup(type);
+			if (found != null && found.nameChanged()) return item.replaceFirst(type, found.after().getName());
+		}
+		return item;
 	}
 }

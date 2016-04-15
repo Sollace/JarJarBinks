@@ -5,10 +5,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldNode;
@@ -18,24 +15,31 @@ import com.blazeloader.jarjar.tree.ClassMap;
 import net.acomputerdog.OBFUtil.map.TargetType;
 import net.acomputerdog.OBFUtil.parse.types.SRGFileParser;
 import net.acomputerdog.OBFUtil.table.DirectOBFTable;
+import net.acomputerdog.OBFUtil.table.OBFTable;
+import net.acomputerdog.OBFUtil.util.Obfuscator;
 import net.acomputerdog.core.java.Patterns;
 
 public class SeargToEnigmaConverter {
-	private static final Pattern DESCRIPTOR_MATCHER = Pattern.compile(Patterns.DESCRIPTOR_PARAMETER);
+	private final Obfuscator obfuscator = new Obfuscator();
 	
-	private ClassMap classes = new ClassMap();
-	private DirectOBFTable table = new DirectOBFTable();
-	
-	private SRGFileParser seargeParser;
+	private ClassMap classes;
+	private OBFTable table;
 	
 	public SeargToEnigmaConverter(boolean side, File seargeFile, File jarFile) {
-		seargeParser = new SRGFileParser(side ? "C"  : "S", false);
+		SRGFileParser seargeParser = new SRGFileParser(side ? "C"  : "S", false);
+		classes = new ClassMap();
+		table = new DirectOBFTable();
 		try {
 			classes.readFromJar(jarFile);
 			seargeParser.loadEntries(seargeFile, table, true);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public SeargToEnigmaConverter(ClassMap classes, OBFTable table) {
+		this.classes = classes;
+		this.table = table;
 	}
 	
 	public String fieldType(String className, String memberName) {
@@ -133,7 +137,7 @@ public class SeargToEnigmaConverter {
 	private String insertNullPackages(String descriptor) {
 		String obfuscatedDescriptor = "";
 		String[] split = descriptor.split("\\)");
-		List<String> paramaters = splitDescriptor(split[0]);
+		List<String> paramaters = Obfuscator.splitDescriptor(split[0]);
 		if (split.length < 2) throw new IllegalArgumentException("Missing return type for \"" + descriptor + "\"");
 		for (String i : paramaters) {
 			obfuscatedDescriptor += insertNullPackage(i);
@@ -143,23 +147,10 @@ public class SeargToEnigmaConverter {
 	
 	private String insertNullPackage(String type) {
 		if (type.endsWith(";") && type.indexOf('/') == -1) {
-			String clazz = extractClass(type);
+			String clazz = obfuscator.extractClass(type);
 			
 			return type.replace(clazz, "none/" + clazz);
 		}
 		return type;
 	}
-	
-	private List<String> splitDescriptor(String descriptor) {
-    	List<String> params = new ArrayList<String>();
-    	Matcher matcher = DESCRIPTOR_MATCHER.matcher(descriptor.trim());
-    	while (matcher.find()) params.add(matcher.group());
-    	return params;
-    }
-	
-	private String extractClass(String descriptedClass) {
-    	String[] split = descriptedClass.split("\\[");
-    	String result = split[split.length - 1];
-    	return result.substring(1, result.length() - 1);
-    }
 }
