@@ -54,7 +54,7 @@ public class ClassRemapper {
 		System.out.println("Performing best match analysis");
 		matcher = new ClassTreeMatcher(from, to);
 		System.out.println("Classes matched: " + matcher.size());
-		System.out.println("Average match: " + Math.floor(matcher.averageSimilarity() * 100)/100 + "%");
+		System.out.println("Average computed similarity: " + Math.floor(matcher.averageSimilarity() * 100)/100 + "%");
 		return matcher;
 	}
 	
