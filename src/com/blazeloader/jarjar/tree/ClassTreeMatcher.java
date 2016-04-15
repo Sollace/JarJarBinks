@@ -51,7 +51,22 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 	private ClassTreeMatcher(ClassTree one, ClassTree two, JsonElement json) {
 		this(100, one, two);
 		root = this;
+		unassignedClasses = new ArrayList<String>();
+		unmatchedClasses = new ArrayList<String>();
 		loadChildrenFromJson(json);
+		JsonObject object = json.getAsJsonObject();
+		if (object.has("unassigned")) {
+			JsonArray arr = object.get("unassigned").getAsJsonArray();
+			for (int i = 0; i < arr.size(); i++) {
+				unassignedClasses.add(arr.get(i).getAsString());
+			}
+		}
+		if (object.has("unmatched")) {
+			JsonArray arr = object.get("unmatched").getAsJsonArray();
+			for (int i = 0; i < arr.size(); i++) {
+				unmatchedClasses.add(arr.get(i).getAsString());
+			}
+		}
 	}
 	
 	private ClassTreeMatcher(ClassTreeMatcher root, JsonObject json) {
@@ -84,14 +99,14 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 		matchChilds(matched, taken);
 		matchInnerClasses(matched, taken);
 		int lostClasses = from.size() - matched.size();
-		int available = from.size() - taken.size();
+		int available = to.size() - taken.size();
 		if (lostClasses != 0) {
 			System.err.println(lostClasses + " classes not identified.");
 			System.err.println(available + " unmapped classes available.");
 			matchLostClasses(matched, taken);
 			matchLostInnerClasses(matched, taken);
 			System.err.println((from.size() - matched.size()) + " classes not identified. (after retry)");
-			System.err.println((from.size() - taken.size()) + " unmapped classes available. (after retry)");
+			System.err.println((to.size() - taken.size()) + " unmapped classes available. (after retry)");
 		}
 		if (root != null) this.root = root;
 		root().recordUnmatchedClasses(this, matched, taken);
@@ -100,7 +115,7 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 	
 	public String writeToJson() {
 		JsonObject element = writeChildsToJson(writeJson(new JsonObject()));
-		if (unmatchedClasses != null) {
+		if (unmatchedClasses != null && unmatchedClasses.size() > 0) {
 			JsonArray items = new JsonArray();
 			for (String i : unmatchedClasses) {
 				ClassTree node = from.lookup(i);
@@ -108,7 +123,7 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 			}
 			element.add("unmatched", items);
 		}
-		if (unassignedClasses != null) {
+		if (unassignedClasses != null && unassignedClasses.size() > 0) {
 			JsonArray items = new JsonArray();
 			for (String i : unassignedClasses) {
 				ClassTree node = to.lookup(i);
@@ -438,6 +453,13 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 		return from;
 	}
 	
+	/**
+	 * Returns true if the before and after class names are not the same.
+	 */
+	public boolean nameChanged() {
+		return !from.getName().equals(to.getName());
+	}
+	
 	public List<ClassTreeMatcher> children() {
 		return children;
 	}
@@ -511,7 +533,6 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 	
 	@Override
 	public int compareTo(ClassTreeMatcher o) {
-		//return from.compareTo(o.from);
 		return Double.compare(o.similarity, similarity);
 	}
 	
@@ -540,8 +561,7 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 		boolean an = from.isAbstract() == to.isAbstract();
 		result += a && an ? "1" : "0";
 		
-		boolean n = from.getName().equals(to.getName());
-		result += n ? "1" : "0";
+		result += nameChanged() ? "0" : "1";
 		return result + " ";
 	}
 	
