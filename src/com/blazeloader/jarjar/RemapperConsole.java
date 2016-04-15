@@ -109,6 +109,7 @@ public class RemapperConsole extends CommandReader {
 			}
 			case "save-mcp": {
 				if (args.length < 2) return "Error: Too few arguments.";
+				args[1] = fillSystemVariables(args[1]);
 				File output = new File(args[1]);
 				SRGFileParser parser = new SRGFileParser("", false);
 				DirectOBFTable table = new DirectOBFTable();
@@ -120,6 +121,7 @@ public class RemapperConsole extends CommandReader {
 			}
 			case "save-tree": {
 				if (args.length < 2) return "Error: Too few arguments.";
+				args[1] = fillSystemVariables(args[1]);
 				File output = new File(args[1]);
 				Writer w = new BufferedWriter(new FileWriter(output));
 				w.write(matcher.toString());
@@ -128,6 +130,7 @@ public class RemapperConsole extends CommandReader {
 			}
 			case "save-json": {
 				if (args.length < 2) return "Error: Too few arguments.";
+				args[1] = fillSystemVariables(args[1]);
 				File output = new File(args[1]);
 				Writer w = new BufferedWriter(new FileWriter(output));
 				w.write(matcher.writeToJson());
@@ -136,6 +139,7 @@ public class RemapperConsole extends CommandReader {
 			}
 			case "load-json": {
 				if (args.length < 3) return "Error: Too few arguments.";
+				args[1] = fillSystemVariables(args[1]);
 				matcher = remapper.loadMatcherFromJson(args[2]);
 				if (matcher == null){
 					return "Error: Could not load matcher.";
