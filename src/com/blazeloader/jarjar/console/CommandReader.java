@@ -30,7 +30,7 @@ public abstract class CommandReader implements Runnable {
 		String input = null;
 		try {
 			while (!"exit".equals(input = reader.readLine())) {
-				if (input != null) {
+				if (input != null && !input.trim().isEmpty()) {
 					String[] split = input.split(spliterator, -1);
 					for (int i = 0; i < split.length; i++) {
 						if (split[i].startsWith("\"")) split[i] = split[i].substring(1);
