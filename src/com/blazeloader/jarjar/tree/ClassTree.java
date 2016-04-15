@@ -387,13 +387,13 @@ public class ClassTree implements Tree<ClassTree, String> {
 	
 	private double matchAttributes(ClassTree other) {
 		double result = 0;
-		result += similarity(fields(), other.fields())/6;
-		result += similarity(methods(), other.methods())/6;
-		result += similarity(abstractMethods, other.abstractMethods)/6;
-		result += similarity(interfaces(), other.interfaces())/6;
-		if (isInner() && matchNesting(other)) result += 1/6;
-		if (isAbstract() == other.isAbstract()) result += 1/6;
-		return result;
+		result += similarity(fields(), other.fields());
+		result += similarity(methods(), other.methods());
+		result += similarity(abstractMethods, other.abstractMethods);
+		result += similarity(interfaces(), other.interfaces());
+		if (matchNesting(other)) result ++;
+		if (isAbstract() == other.isAbstract()) result ++;
+		return result/6;
 	}
 	
 	private float similarity(int one, int two) {
