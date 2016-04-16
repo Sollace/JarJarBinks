@@ -191,6 +191,7 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 					double lastSim = -1;
 					for (String j : tos) {
 						ClassTree t = to.lookup(j);
+						if (parent.after() != t.parent()) continue;
 						if (t.isInner()) continue;
 						double sim = f.similarity(t);
 						if (sim >= lastSim) {
@@ -231,6 +232,7 @@ public class ClassTreeMatcher implements Tree<ClassTreeMatcher, String> {
 					double lastSim = -1;
 					for (String j : tos) {
 						ClassTree t = to.lookup(j);
+						if (parent.after() != t.parent()) continue;
 						if (!t.isInner()) continue;
 						double sim = f.similarity(t);
 						if (sim >= lastSim) {

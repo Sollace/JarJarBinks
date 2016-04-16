@@ -71,10 +71,10 @@ public abstract class CommandReader implements Runnable {
 		if (line.indexOf('$') != -1) {
 			String[] components = line.split("\\$");
 			for (Entry<String, String> e : keys) {
-				String s = e.getKey();
+				String s = e.getKey().toLowerCase();
 				String v = e.getValue().replace('\\', '/');
 				for (int i = 0; i < components.length; i++) {
-					if (components[i].startsWith(s)) {
+					if (components[i].toLowerCase().startsWith(s)) {
 						components[i] = components[i].replaceFirst(s, v);
 					}
 				}
