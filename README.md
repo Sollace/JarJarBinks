@@ -10,10 +10,10 @@ Currently includes three main features.
 2. Convert MCP (.srg) mappings into the mapping format used by Cuchas' Enigma decompiler/deobfuscator.
 
 3. Class name mapping.
-  JarJar uses advanced tree tecniques to compare and produce a best match between two different versions of the minecraft .jar.
+  JarJar uses advanced tree techniques to compare and produce a best match between two different versions of the minecraft .jar.
   The result is a tree data structure mirroring the class hierarchy with each class from the first jar matched to an equivalent in the second jar.
   
-  Once the tree is loaded JarJarBinks provides a command line with commands to query and modify this tree, as well a output it to a file in either raw text (save-tree), mcp (.srg) mappings, or as JSON which may be reloaded at a later time.
+  Once the tree is loaded JarJarBinks provides a command line to query and modify this tree, as well output it to a file in either raw text (save-tree), mcp (.srg) mappings, or as JSON which may be reloaded at a later time.
   
   
 # Usage
@@ -23,11 +23,11 @@ Arguments in "[]" are required, and arguments in "{}" are optional.
 For the access transformer:
 
     jarjar [onf] [jar] [state] {displace}
-       onf - path to .onf file to apply
+       onf - path to the .onf file to apply
        jar - the jar file to transform
        state - obfuscation state (MCP|SRG|OBF)
        replace - Can be anything. If present the original file will be moved to a backup location and
-                 replaced with the new one. Default behavious puts the output file alongside the input file
+                 replaced with the new one. Default behaviour puts the output file alongside the input file
                  with a ".tmp" extension appended.
 
 To convert mappings:
@@ -35,7 +35,7 @@ To convert mappings:
     jarjar enigma [srg] [minecraft-version.jar] [output]
        srg - path to notch-mcp.srg file. (It has to be this one, otherwise things will act weird.)
        jar - the minecraft.jar that the mappings apply to
-       output - location where you want to save to resulting .enigma file
+       output - location where you want to save the resulting .enigma file
 
 To do class matchings:
 
